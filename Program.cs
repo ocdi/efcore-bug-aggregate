@@ -14,15 +14,26 @@ var options = new DbContextOptionsBuilder<TestContext>().UseSqlServer(server.Get
 var db = new TestContext(options);
 await db.Database.EnsureCreatedAsync();
 
+
+
 var query = db.Set<Receipt>()
+.GroupBy(a => new { OwnerId = a.OwnerId, a.OwnerType })
+.Select(a => new { a.Key, Total = a.Sum(t => t.Lines.Sum(s => s.Amount)) });
+
+//"SELECT [r].[OwnerId], [r].[OwnerType], COALESCE(SUM((\r\n    SELECT COALESCE(SUM([l].[Amount]), 0)\r\n    FROM [Lines] AS [l]\r\n    WHERE [r].[Id] = [l].[ReceiptId1])), 0) AS [Total]\r\nFROM [Receipts] AS [r]\r\nGROUP BY [r].[OwnerId], [r].[OwnerType]"
+
+var r = query.ToArray();
+
+
+var queryAlt = db.Set<Receipt>()
             .Select(a => new { OwnerId = a.OwnerId, a.OwnerType, Cents = a.Lines.Sum(a => a.Amount) })
             .GroupBy(a => new { OwnerId = a.OwnerId, a.OwnerType })
             .Select(a => new { a.Key, Total = a.Sum(t => t.Cents) });
+var rAlt = queryAlt.ToArray();
 
+// "SELECT [r].[OwnerId], [r].[OwnerType], COALESCE(SUM((\r\n    SELECT COALESCE(SUM([l].[Amount]), 0)\r\n    FROM [Lines] AS [l]\r\n    WHERE [r].[Id] = [l].[ReceiptId1])), 0) AS [Total]\r\nFROM [Receipts] AS [r]\r\nGROUP BY [r].[OwnerId], [r].[OwnerType]"
+// Cannot perform an aggregate function on an expression containing an aggregate or a subquery.
 
-var r = query.ToArray();
-//"SELECT [r].[OwnerId], [r].[OwnerType], COALESCE(SUM((\r\n    SELECT COALESCE(SUM([l].[Amount]), 0)\r\n    FROM [Lines] AS [l]\r\n    WHERE [r].[Id] = [l].[ReceiptId1])), 0) AS [Total]\r\nFROM [Receipts] AS [r]\r\nGROUP BY [r].[OwnerId], [r].[OwnerType]"
-// invalid query
 
 Console.WriteLine(r.Length);
 
